@@ -1,11 +1,15 @@
-from app.agents.strategy_agent import StrategyAgent
-from app.schemas.goal import GoalRequest, GoalResponse
+from app.agents.strategy_agent import generate_strategy
 
 
-class Orchestrator:
-    def __init__(self) -> None:
-        self.strategy_agent = StrategyAgent()
+def run_goal_workflow(goal: str, business_type: str, target_audience: str, budget: float):
+    strategy = generate_strategy(
+        goal=goal,
+        business_type=business_type,
+        target_audience=target_audience,
+        budget=budget,
+    )
 
-    def handle_goal(self, goal_request: GoalRequest) -> GoalResponse:
-        strategy = self.strategy_agent.generate_strategy(goal_request)
-        return GoalResponse(goal=goal_request.goal, strategy=strategy)
+    return {
+        "goal": goal,
+        "strategy": strategy
+    }

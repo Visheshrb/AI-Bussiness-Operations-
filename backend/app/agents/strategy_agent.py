@@ -1,44 +1,53 @@
-from app.schemas.goal import GoalRequest, StrategyOutput
+from openai import OpenAI
+from app.core.config import settings
 
 
-class StrategyAgent:
-    """Simple starter agent.
+def generate_strategy(goal: str, business_type: str, target_audience: str, budget: float):
+    # Fallback if API key is missing
+    if not settings.openai_api_key:
+        return {
+            "summary": "OPENAI_API_KEY is missing. Add it in backend/.env to get live AI output.",
+            "channels": ["LinkedIn", "Email"],
+            "actions": [
+                "Add OPENAI_API_KEY to .env",
+                "Restart the FastAPI server",
+                "Test /submit-goal again"
+            ]
+        }
 
-    For now it returns a deterministic strategy so the API works end-to-end.
-    Later, this is the file where you will add your real LLM call.
-    """
+    client = OpenAI(api_key=settings.openai_api_key)
 
-    def generate_strategy(self, goal_request: GoalRequest) -> StrategyOutput:
-        business_type = goal_request.business_type.lower()
+    prompt = f"""
+You are a business growth strategist.
 
-        if "saas" in business_type:
-            return StrategyOutput(
-                summary="Focus on awareness, targeted outreach, and landing page conversion.",
-                channels=["LinkedIn", "Email", "Content Marketing"],
-                actions=[
-                    "Create a clear landing page with one strong CTA.",
-                    "Run a weekly LinkedIn content plan targeting the chosen audience.",
-                    "Send personalized cold emails to qualified prospects.",
-                ],
-            )
+Create a short business growth strategy in JSON-like style for this input:
 
-        if "real estate" in business_type:
-            return StrategyOutput(
-                summary="Focus on local lead generation, listing promotion, and buyer follow-up.",
-                channels=["Instagram", "Facebook Ads", "Email"],
-                actions=[
-                    "Create high-quality posts for the featured properties.",
-                    "Run local ads targeting buyers in the selected area.",
-                    "Follow up with interested leads using a short email sequence.",
-                ],
-            )
+Goal: {goal}
+Business Type: {business_type}
+Target Audience: {target_audience}
+Budget: {budget}
 
-        return StrategyOutput(
-            summary="Start with one audience, one offer, and one measurable campaign.",
-            channels=["Email", "Social Media", "Website"],
-            actions=[
-                "Define the main customer segment and key problem.",
-                "Launch one small campaign with a clear call to action.",
-                "Track clicks, leads, and conversions to improve the next iteration.",
-            ],
-        )
+Return:
+1. summary
+2. 3 best channels
+3. 3-5 action steps
+
+Keep it practical, short, and startup-friendly.
+"""
+
+    response = client.responses.create(
+        model=settings.openai_model,
+        input=prompt
+    )
+
+    text_output = response.output_text.strip()
+
+    return {
+        "summary": text_output,
+        "channels": ["AI-generated"],
+        "actions": [
+            "Review generated strategy",
+            "Refine prompts",
+            "Convert output to structured JSON next"
+        ]
+    }
