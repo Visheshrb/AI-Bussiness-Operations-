@@ -1,6 +1,10 @@
 from fastapi import FastAPI
 from app.api.routes import router
 from app.core.config import settings
+from app.db.database import Base, engine
+from app.models.goal_model import GoalRecord
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title=settings.app_name,
