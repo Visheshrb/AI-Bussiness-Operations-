@@ -17,9 +17,9 @@ def run_goal_workflow(goal: str, business_type: str, target_audience: str, budge
         business_type=business_type,
         target_audience=target_audience,
         budget=str(budget),
-        summary=strategy["summary"],
-        channels=json.dumps(strategy["channels"]),
-        actions=json.dumps(strategy["actions"]),
+        summary=strategy.get("summary", ""),
+        channels=json.dumps(strategy.get("channels", [])),
+        actions=json.dumps(strategy.get("actions", [])),
     )
 
     db.add(record)

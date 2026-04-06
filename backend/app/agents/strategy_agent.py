@@ -1,6 +1,10 @@
-import json
 import requests
 from app.core.config import settings
+from app.services.parser import (
+    extract_json_from_text,
+    validate_strategy_output,
+    get_fallback_strategy,
+)
 
 
 def generate_strategy(goal: str, business_type: str, target_audience: str, budget: float):
@@ -24,9 +28,12 @@ Rules:
 - Output only JSON
 - No markdown
 - No explanation
+- No extra text before or after JSON
 - Keep summary short
 - Keep exactly 3 channels
-- Keep 4 actions
+- Keep exactly 4 actions
+- channels must contain only strings
+- actions must contain only strings
 """
 
     try:
@@ -44,23 +51,11 @@ Rules:
         data = response.json()
         text_output = data.get("response", "").strip()
 
-        # Try parsing model output as JSON
-        parsed = json.loads(text_output)
+        parsed = extract_json_from_text(text_output)
+        validated = validate_strategy_output(parsed)
 
-        return {
-            "summary": parsed.get("summary", "No summary generated."),
-            "channels": parsed.get("channels", []),
-            "actions": parsed.get("actions", [])
-        }
+        return validated
 
     except Exception as e:
-        return {
-            "summary": f"Structured output failed: {str(e)}",
-            "channels": ["Fallback Channel 1", "Fallback Channel 2", "Fallback Channel 3"],
-            "actions": [
-                "Check if Ollama is running",
-                "Check if model output is valid JSON",
-                "Retry with a smaller model",
-                "Refine the prompt"
-            ]
-        }
+        print("Strategy generation failed:", str(e))
+        return get_fallback_strategy(goal, business_type, target_audience, budget)
