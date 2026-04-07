@@ -1,21 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from app.api.routes import router
-from app.core.config import settings
-from app.db.database import Base, engine
-from app.models.goal_model import GoalRecord
 
-Base.metadata.create_all(bind=engine)
-
-app = FastAPI(
-    title=settings.app_name,
-    version=settings.app_version
-)
+app = FastAPI(title="Autonomous Business Operator AI")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
