@@ -1,7 +1,9 @@
-import { useState } from "react";
-import api from "../services/api";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-function GoalForm({ setResult, onSuccess }) {
+const GoalForm = () => {
+  const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
     goal: "",
     business_type: "",
@@ -10,7 +12,6 @@ function GoalForm({ setResult, onSuccess }) {
   });
 
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
 
   const handleChange = (e) => {
     setFormData({
@@ -19,104 +20,68 @@ function GoalForm({ setResult, onSuccess }) {
     });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     setLoading(true);
-    setMessage("");
 
     try {
-      const response = await api.post("/submit-goal", {
-        goal: formData.goal,
-        business_type: formData.business_type,
-        target_audience: formData.target_audience,
-        budget: Number(formData.budget),
+      const res = await fetch("http://localhost:8000/submit-goal", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...formData,
+          budget: parseFloat(formData.budget),
+        }),
       });
 
-      setResult(response.data);
-      setMessage("✅ Submitted successfully");
+      const data = await res.json();
 
-      setFormData({
-        goal: "",
-        business_type: "",
-        target_audience: "",
-        budget: "",
-      });
+      navigate("/history", { state: { data } });
 
-      if (onSuccess) {
-        onSuccess();
-      }
     } catch (error) {
-      console.error("Full error:", error);
-      console.error("Response data:", error.response?.data);
-
-      if (error.response?.data) {
-        setMessage(`❌ ${JSON.stringify(error.response.data)}`);
-      } else {
-        setMessage("❌ Error submitting data");
-      }
-    } finally {
-      setLoading(false);
+      console.error(error);
+      alert("Something went wrong");
     }
+
+    setLoading(false);
   };
 
   return (
-    <div className="panel-card">
-      <div className="card-header">
-        <h2>New Analysis</h2>
-        <p>Fill in the details below</p>
-      </div>
+    <div className="container">
+      <h1>🚀 Autonomous Business Operator AI</h1>
 
-      <form onSubmit={handleSubmit} className="goal-form">
-        <textarea
+      <div className="card">
+        <input
           name="goal"
-          placeholder="Enter your business goal"
-          rows="4"
-          value={formData.goal}
+          placeholder="Enter your goal"
           onChange={handleChange}
-          required
         />
 
-        <select
+        <input
           name="business_type"
-          value={formData.business_type}
+          placeholder="Business type (e.g. SaaS)"
           onChange={handleChange}
-          required
-        >
-          <option value="">Select business type</option>
-          <option value="Startup">Startup</option>
-          <option value="Real Estate">Real Estate</option>
-          <option value="Business">Business</option>
-          <option value="E-commerce">E-commerce</option>
-          <option value="SaaS">SaaS</option>
-          <option value="Agency">Agency</option>
-        </select>
+        />
 
         <input
-          type="text"
           name="target_audience"
-          placeholder="Enter target audience"
-          value={formData.target_audience}
+          placeholder="Target audience"
           onChange={handleChange}
-          required
         />
 
         <input
-          type="number"
           name="budget"
-          placeholder="Enter budget"
-          value={formData.budget}
+          placeholder="Budget"
           onChange={handleChange}
-          required
         />
 
-        <button type="submit" disabled={loading}>
-          {loading ? "Running..." : "Run Analysis"}
+        <button onClick={handleSubmit} disabled={loading}>
+          {loading ? "Generating..." : "Generate Plan"}
         </button>
-      </form>
-
-      {message && <p className="form-message">{message}</p>}
+      </div>
     </div>
   );
-}
+};
 
 export default GoalForm;

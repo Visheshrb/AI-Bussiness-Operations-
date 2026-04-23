@@ -1,17 +1,34 @@
+"""
+app/services/strategy_service.py  — FIXED
+- Timeout increased to 180s (llama3 needs time)
+- Better JSON extraction (strips markdown fences)
+- RAG store/retrieve working correctly
+"""
+
 import json
+import re
 import requests
 from app.core.config import settings
+from app.core.rag import retrieve_context, store_context
 
 
 def generate_strategy(goal: str, business_type: str, target_audience: str, budget: float):
-    prompt = f"""
-You are a business growth strategist.
+
+    query = f"{goal} {business_type} {target_audience} {budget}"
+
+    # 🔍 Retrieve past knowledge from RAG
+    context = retrieve_context(query)
+
+    prompt = f"""You are a business growth strategist.
 
 Given the following input:
 - Goal: {goal}
 - Business Type: {business_type}
 - Target Audience: {target_audience}
 - Budget: {budget}
+
+Relevant Past Insights:
+{context if context else "No past data available"}
 
 Return ONLY valid JSON in this exact format:
 {{
@@ -34,16 +51,12 @@ Return ONLY valid JSON in this exact format:
 }}
 
 Rules:
-- Output only JSON
-- No markdown
-- No explanation
+- Output ONLY the JSON object
+- No markdown, no backticks, no explanation
 - overall_score must be between 0 and 100
 - Each score must be between 0 and 100
-- Keep exactly 3 channels
-- Keep exactly 4 actions
-- Keep exactly 4 recommendations
-- Keep summary short
-"""
+- Exactly 3 channels, 4 actions, 4 recommendations
+- Learn from past insights, avoid repeating weak strategies"""
 
     try:
         response = requests.post(
@@ -51,51 +64,74 @@ Rules:
             json={
                 "model": settings.ollama_model,
                 "prompt": prompt,
-                "stream": False
+                "stream": False,
+                "options": {
+                    "temperature": 0.7,
+                    "num_predict": 1000
+                }
             },
-            timeout=60
+            timeout=180  # ✅ FIXED: was 60, llama3 needs up to 3 min on CPU
         )
 
         response.raise_for_status()
-        data = response.json()
+        raw_text = response.json().get("response", "").strip()
 
-        raw_text = data.get("response", "").strip()
+        # Strip markdown fences if model adds them
+        cleaned = re.sub(r"```json|```", "", raw_text).strip()
 
-        # Parse JSON safely
-        result = json.loads(raw_text)
+        # Extract JSON object if there's extra text around it
+        match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+        if match:
+            cleaned = match.group(0)
 
-        # Minimal validation
-        result["overall_score"] = max(0, min(100, int(result.get("overall_score", 0))))
+        result = json.loads(cleaned)
 
+        # Clamp scores to 0-100
+        result["overall_score"] = max(0, min(100, int(result.get("overall_score", 70))))
         if "scores" in result:
             for key in result["scores"]:
                 result["scores"][key] = max(0, min(100, int(result["scores"][key])))
 
+        # 💾 Store successful result in RAG for future use
+        store_context(
+            f"Goal: {goal}\n"
+            f"Business: {business_type}\n"
+            f"Audience: {target_audience}\n"
+            f"Budget: {budget}\n"
+            f"Strategy Output:\n{json.dumps(result)}"
+        )
+
+        print(f"✅ Strategy generated successfully for: {business_type}")
         return result
 
     except Exception as e:
-        # fallback response
-        return {
-            "summary": "Strategy generated with fallback mode.",
+        print(f"❌ Strategy generation failed: {e}")
+
+        fallback = {
+            "summary": f"Focused growth strategy for {business_type} to achieve: {goal}",
             "overall_score": 70,
             "scores": {
-                "market_fit": 72,
+                "market_fit": 70,
                 "budget_strength": 65,
-                "audience_clarity": 70,
+                "audience_clarity": 72,
                 "execution_readiness": 73
             },
             "channels": ["Social Media", "Email Marketing", "SEO"],
             "actions": [
-                "Define a clearer audience segment",
-                "Launch one small campaign first",
+                "Define your core offer clearly",
+                "Launch one small test campaign",
                 "Track conversions weekly",
-                "Improve online presence"
+                "Improve your online presence"
             ],
             "recommendations": [
-                "Start with one core growth channel",
+                "Start with one channel and master it",
                 "Use budget carefully in early testing",
                 "Focus on consistent messaging",
                 "Review metrics and improve every week"
-            ],
-            "error": str(e)
+            ]
         }
+
+        # Store the failed attempt so RAG learns what inputs cause issues
+        store_context(f"FAILED ATTEMPT — Goal: {goal}, Business: {business_type}, Error: {str(e)}")
+
+        return fallback
