@@ -4,8 +4,14 @@ Handles password hashing, JWT creation, and user verification.
 """
 
 import os
-from datetime import datetime, timedelta
+import bcrypt  # Imported to apply the patch
+from datetime import datetime, timedelta, timezone
 from typing import Optional
+
+# ── FIX: Passlib/Bcrypt Compatibility Patch ──────────────────────────────────
+# This tricks passlib into thinking bcrypt has the __about__ attribute it expects.
+if not hasattr(bcrypt, "__about__"):
+    bcrypt.__about__ = type('about', (object,), {'__version__': bcrypt.__version__})
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -33,7 +39,8 @@ def verify_password(plain: str, hashed: str) -> bool:
 # ── JWT ───────────────────────────────────────────────────────────────────────
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    # Using timezone-aware datetime to avoid deprecation warnings
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode["exp"] = expire
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
