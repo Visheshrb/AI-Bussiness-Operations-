@@ -1,7 +1,5 @@
 # Autonomous Business Operator AI - Simple Backend Starter
 
-# Autonomous Business Operator AI - Simple Backend Starter
-
 This is a clean starter version with only the backend setup.
 
 ## What is included?
